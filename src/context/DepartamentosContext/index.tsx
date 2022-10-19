@@ -1,73 +1,110 @@
-import React, { createContext, useContext, useState, useEffect, PropsWithChildren, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  PropsWithChildren,
+  useCallback,
+} from "react";
 import { useApi } from "../../hooks/api";
 
-const DepartamentosContext = createContext({} as Record<string, any>)
+const DepartamentosContext = createContext({} as Record<string, any>);
 
 export default function DepartamentosProvider({ children }: PropsWithChildren) {
-    const departamentoApi = useApi('departamento')
+  const departamentoApi = useApi("departamento");
 
-    const [departamentos, setDepartamentos] = useState([] as any[])
+  const [departamentos, setDepartamentos] = useState([] as any[]);
+  const [currentDepartamento, setCurrentDepartamento] = useState(
+    null as null | Record<string, any>
+  );
 
-    const [showModal, setShowModal] = useState(false);
-    const handleShowModal = () => setShowModal(true);
-    const handleCloseModal = () => setShowModal(false);
+  const [showModal, setShowModal] = useState(false);
+  const handleShowModal = useCallback(() => setShowModal(true), []);
+  const handleCloseModal = useCallback(() => {
+    setShowModal(false);
+    setCurrentDepartamento(null);
+  }, []);
 
-    function novoDepartamento() {
-        handleShowModal();
-    }
+  const novoDepartamento = useCallback(() => {
+    setCurrentDepartamento(null);
+    handleShowModal();
+  }, [handleShowModal]);
 
-    function editarDepartamento(departament: any) {
-        handleShowModal();
-    }
+  const editarDepartamento = useCallback(
+    (departamento: any) => {
+      setCurrentDepartamento(departamento);
+      handleShowModal();
+    },
+    [handleShowModal]
+  );
 
-    function salvarDepartamento(event: Event) {
+  const loadDepartamentos = useCallback(() => {
+    departamentoApi.all().then((data) => {
+      setDepartamentos(data);
+    });
+  }, [departamentoApi]);
 
+  const salvarDepartamento = useCallback(
+    async (event: SubmitEvent) => {
+      event.preventDefault();
+      const data = Object.fromEntries(
+        new FormData(event.target as HTMLFormElement).entries()
+      ) as Record<string, any>;
+
+      // FIXME: deve ser tratado no backend
+      data.auditoria = { dataRegistro: new Date() };
+
+      try {
+        await departamentoApi.createOrUpdateOne(data);
         handleCloseModal();
-        event.preventDefault();
-    }
+        loadDepartamentos();
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao salvar departamento");
+      }
 
-    const excluirDepartamento = async (id: string) => {
-        try {
-            await departamentoApi.delete(id);
-            alert('Departamento excluido com sucesso')
-            loadDepartamentos();
-        } catch (err) {
-            console.error(err);
-            alert('Erro ao excluir departamento')
-        }
-    }
+      event.preventDefault();
+    },
+    [departamentoApi, handleCloseModal, loadDepartamentos]
+  );
 
-    const loadDepartamentos = useCallback(() => {
-        departamentoApi.all().then(data => {
-            setDepartamentos(data);
-        })
-    }, [departamentoApi])
+  const excluirDepartamento = useCallback(
+    async (id: string) => {
+      try {
+        await departamentoApi.delete(id);
+        loadDepartamentos();
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao excluir departamento");
+      }
+    },
+    [departamentoApi, loadDepartamentos]
+  );
 
-    useEffect(
-        () => {
-            loadDepartamentos();
-        }, [loadDepartamentos]
-    )
+  useEffect(() => {
+    loadDepartamentos();
+  }, [loadDepartamentos]);
 
-    return (
-        <DepartamentosContext.Provider
-            value={{
-                departamentos,
-                setDepartamentos,
-                novoDepartamento,
-                editarDepartamento,
-                salvarDepartamento,
-                loadDepartamentos,
-                excluirDepartamento,
-                showModal,
-                handleCloseModal,
-            }}
-        >
-            {children}
-        </DepartamentosContext.Provider>
-    );
+  return (
+    <DepartamentosContext.Provider
+      value={{
+        departamentos,
+        setDepartamentos,
+        novoDepartamento,
+        editarDepartamento,
+        salvarDepartamento,
+        loadDepartamentos,
+        excluirDepartamento,
+        showModal,
+        handleCloseModal,
+        currentDepartamento,
+      }}
+    >
+      {children}
+    </DepartamentosContext.Provider>
+  );
 }
 
 export function useDepartamentos() {
-    return useContext(DepartamentosContext)
+  return useContext(DepartamentosContext);
 }
